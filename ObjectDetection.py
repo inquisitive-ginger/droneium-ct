@@ -16,10 +16,12 @@ import six.moves.urllib as urllib
 from io import StringIO
 from matplotlib import pyplot as plt
 from PIL import Image
+import pydash as _
 
 # This is needed since the notebook is stored in the object_detection folder.
 MODEL_DIR = '../tensorflow/models/research/object_detection/'
 sys.path.append(MODEL_DIR)
+print(sys.path)
 from object_detection.utils import ops as utils_ops
 from object_detection.utils import label_map_util
 from utils import label_map_util
@@ -28,10 +30,19 @@ from utils import visualization_utils as vis_util
 NUM_CLASSES = 90
 
 class ObjectDetection():
-    def __init__(self, model_name='ssd_mobilenet_v2_coco_2018_03_29', detect_class=1):
+    def __init__(self, 
+                 model_name='ssd_mobilenet_v2_coco_2018_03_29', 
+                 detect_class=1, 
+                 label_path='./person_label_map.pbtxt', 
+                 camera=0,
+                 visualize_detection=True):
+
         # general initialization variables
         self.model_name = model_name
         self.detect_class = detect_class
+        self.label_path = label_path
+        self.camera = camera
+        self.visualize_detection = visualize_detection
 
         # core detection variables
         self.detection_graph = None
@@ -72,13 +83,12 @@ class ObjectDetection():
                 tf.import_graph_def(od_graph_def, name='')
 
     def begin_detection(self):
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(self.camera)
 
         # List of the strings that is used to add correct label for each box.
-        label_path = os.path.join(MODEL_DIR + 'data', 'mscoco_label_map.pbtxt')
-
+        # label_path = os.path.join(MODEL_DIR + 'data', 'mscoco_label_map.pbtxt')
         # load up label map
-        label_map = label_map_util.load_labelmap(label_path)
+        label_map = label_map_util.load_labelmap(self.label_path)
         categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
         category_index = label_map_util.create_category_index(categories)
 
@@ -100,45 +110,41 @@ class ObjectDetection():
                     (boxes, scores, classes, num_detections) = sess.run(
                     [boxes, scores, classes, num_detections],
                     feed_dict={image_tensor: image_np_expanded})
-                    #print(category_index[1])
-                    # create bounded box and classes only if it is banana(52) and the confidence is more than 60%
-                    for i in range(0,len(classes[0])):
-                        if int(float(classes[0][i])) == self.detect_class and scores[0,i] > 0.6:
-                            # Visualization of the results of a detection.
-                            image_np = vis_util.visualize_boxes_and_labels_on_image_array(
-                                image_np,
-                                np.squeeze(boxes),
-                                np.squeeze(classes).astype(np.int32),
-                                np.squeeze(scores),
-                                category_index,
-                                use_normalized_coordinates=True,
-                                line_thickness=8)
-                        #print the boxes coordinate
-                        height = 800
-                        width = 600
-                        for f, box in enumerate(np.squeeze(boxes)):
-                            if(np.squeeze(scores)[f] > 0.6):
-                                print("ymin={}, xmin={}, ymax={}, xmax={}".format(box[0]*height,box[1]*width,box[2]*height,box[3]*width))
-                                #Print the detected objects with the confidence
-                        objects = []
-                        for index, value in enumerate(classes[0]):
-                            object_dict = {}
-                            if scores[0, index] > 0.6:
-                                object_dict[(category_index.get(value)).get('name').encode('utf8')] = \
-                                scores[0, index]
-                                objects.append(object_dict)
-                        print(objects)
 
-                    cv2.imshow('object detection', cv2.resize(image_np, (800,600)))
-                    if cv2.waitKey(25) & 0xFF == ord('q'):
-                        cv2.destroyAllWindows()
-                        break
+                    # print(boxes, scores, classes)
+                    
+                    #print(category_index[1])
+                    # create bounded box and classes only if it is detect(52) and the confidence is more than 60%
+                    detect_instances = np.where(classes[0] == self.detect_class)
+                    if (len(detect_instances[0]) > 0):
+                        detect_indexes = detect_instances[0]
+                        max_detect_scores = np.array([scores[0][detect_indexes][0]])
+                        max_detect_boxes = np.array([boxes[0][detect_indexes][0]])
+                        max_detect_classes = np.array([classes[0][detect_indexes][0].astype(np.int32)])
+
+                        
+                        if (self.visualize_detection):
+                            image_np = vis_util.visualize_boxes_and_labels_on_image_array(
+                                    image_np,
+                                    max_detect_boxes,
+                                    max_detect_classes,
+                                    max_detect_scores,
+                                    category_index,
+                                    min_score_thresh=.25,
+                                    use_normalized_coordinates=True,
+                                    line_thickness=8)
+
+                    if (self.visualize_detection):
+                        cv2.imshow('object detection', image_np)
+                        if cv2.waitKey(25) & 0xFF == ord('q'):
+                            cv2.destroyAllWindows()
+                            break
 
 
 def main():
     model_name = 'ssd_mobilenet_v2_coco_2018_03_29'
-    detect_class = 77
-    object_detector = ObjectDetection(model_name=model_name, detect_class=detect_class)
+    label_path = './backpack_label_map.pbtxt'
+    object_detector = ObjectDetection(model_name=model_name, camera=0, detect_class=27, visualize_detection=False)
 
 if __name__ == '__main__':
     main()
