@@ -1,10 +1,13 @@
 import logging
 import time
+import threading
 
 import cflib.crtp
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.positioning.motion_commander import MotionCommander
+
+from ObjectDetection import ObjectDetection
 
 URI = 'radio://0/80/250K'
 
@@ -13,7 +16,21 @@ logging.basicConfig(level=logging.ERROR)
 
 class ControlTower():
     def __init__(self):
-        pass
+        self.object_detection = ObjectDetection(camera=0, label_path="./banana_label_map.pbtxt", detect_class=52, visualize_detection=False)
+
+        # start a new object detection thread
+        self.od_thread = threading.Thread(target=self.object_detection.begin_detection)
+        self.od_thread.start()
+
+        # keep track of detection trends
+        self.not_detected_count = 0
+
+    def calculate_deltas(self, bounds):
+        x_min, y_min, x_max, y_max = bounds
+        x_delta = (1 - x_max) - x_min
+        y_delta = (1 - y_max) - y_min
+
+        print(x_delta, y_delta)
 
     def fly(self):
         # Initialize the low-level drivers (don't list the debug drivers)
@@ -22,48 +39,32 @@ class ControlTower():
         with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
             # We take off when the commander is created
             with MotionCommander(scf) as mc:
+                time.sleep(3)
+
+                # move up a bit higher
+                mc.up(1.0)
                 time.sleep(1)
 
-                # # There is a set of functions that move a specific distance
-                # We can move in all directions
-                mc.forward(1.8)
-                mc.back(1.8)
-                time.sleep(1)
-
-                # mc.up(0.5)
-                # mc.down(0.5)
-                # time.sleep(1)
-
-                # We can also set the velocity
-                mc.right(0.5, velocity=0.8)
-                time.sleep(1)
-                mc.left(0.5, velocity=0.4)
-                time.sleep(1)
-
-                # # We can do circles or parts of circles
-                mc.circle_right(0.5, velocity=0.5, angle_degrees=180)
-
-                # # Or turn
-                # mc.turn_left(90)
-                # time.sleep(1)
-
-                # # We can move along a line in 3D space
-                mc.move_distance(-1, 0.0, 0.5, velocity=0.6)
-                time.sleep(1)
-
-                # # There is also a set of functions that start a motion. The
-                # # Crazyflie will keep on going until it gets a new command.
-
-                # mc.start_left(velocity=0.5)
-                # # The motion is started and we can do other stuff, printing for
-                # # instance
-                # for _ in range(5):
-                #     print('Doing other work')
-                #     time.sleep(0.2)
-
-                # And we can stop
+                # turn left and then right looking for object
+                while(not self.object_detection.get_detected()):
+                    mc.start_turn_right(rate=18)
+                    time.sleep(0.1)
+                
                 mc.stop()
 
+                while(self.not_detected_count < 100):
+                    print("Not Detected Count: ", self.not_detected_count)
+                    if(not self.object_detection.get_detected()):
+                        self.not_detected_count += 1
+                        time.sleep(0.1)
+                        continue
+
+                    if(self.not_detected_count < 20 or self.object_detection.get_detected()):
+                        mc.forward(0.5, velocity=0.25)
+
+                    time.sleep(0.1)
+
+                mc.stop()
                 # We land when the MotionCommander goes out of scope
 
 def main():

@@ -16,7 +16,6 @@ import six.moves.urllib as urllib
 from io import StringIO
 from matplotlib import pyplot as plt
 from PIL import Image
-import pydash as _
 
 # This is needed since the notebook is stored in the object_detection folder.
 MODEL_DIR = '../tensorflow/models/research/object_detection/'
@@ -32,8 +31,8 @@ NUM_CLASSES = 90
 class ObjectDetection():
     def __init__(self, 
                  model_name='ssd_mobilenet_v2_coco_2018_03_29', 
-                 detect_class=1, 
-                 label_path='./person_label_map.pbtxt', 
+                 label_path='./backpack_label_map.pbtxt', 
+                 detect_class=27, 
                  camera=0,
                  visualize_detection=True):
 
@@ -49,8 +48,12 @@ class ObjectDetection():
         self.object_detected = False
         self.object_bounds = []
 
+        # variables needed for control tower
+        self.detetected = False
+        self.detection_box = []
+
+        # go load model file (download if needed)
         self.initialize_model()
-        self.begin_detection()
 
     def download_model(self):
         print("Downloading model file....")
@@ -72,7 +75,6 @@ class ObjectDetection():
 
         # Path to frozen detection graph. This is the actual model that is used for the object detection.
         ckpt_path = self.model_name + '/frozen_inference_graph.pb'
-
 
         self.detection_graph = tf.Graph()
         with self.detection_graph.as_default():
@@ -122,7 +124,12 @@ class ObjectDetection():
                         max_detect_boxes = np.array([boxes[0][detect_indexes][0]])
                         max_detect_classes = np.array([classes[0][detect_indexes][0].astype(np.int32)])
 
-                        
+                        # set detection state
+                        self.detetected = True
+                        self.detection_box = max_detect_boxes[0]
+
+                        print("detected")
+
                         if (self.visualize_detection):
                             image_np = vis_util.visualize_boxes_and_labels_on_image_array(
                                     image_np,
@@ -133,6 +140,9 @@ class ObjectDetection():
                                     min_score_thresh=.25,
                                     use_normalized_coordinates=True,
                                     line_thickness=8)
+                    else:
+                        self.detetected = False
+                        self.detection_box = []
 
                     if (self.visualize_detection):
                         cv2.imshow('object detection', image_np)
@@ -140,11 +150,16 @@ class ObjectDetection():
                             cv2.destroyAllWindows()
                             break
 
+    def get_detected(self):
+        return self.detetected
+
+    def get_detection_box(self):
+        return self.detection_box
+
 
 def main():
-    model_name = 'ssd_mobilenet_v2_coco_2018_03_29'
-    label_path = './backpack_label_map.pbtxt'
-    object_detector = ObjectDetection(model_name=model_name, camera=0, detect_class=27, visualize_detection=False)
+    object_detector = ObjectDetection(camera=0, label_path="./banana_label_map.pbtxt", detect_class=52, visualize_detection=True)
+    object_detector.begin_detection()
 
 if __name__ == '__main__':
     main()
