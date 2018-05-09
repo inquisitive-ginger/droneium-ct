@@ -16,11 +16,10 @@ logging.basicConfig(level=logging.ERROR)
 
 class ControlTower():
     def __init__(self):
-        self.object_detection = ObjectDetection(camera=0, label_path="./banana_label_map.pbtxt", detect_class=52, visualize_detection=False)
+        self.object_detection = ObjectDetection(camera=0, label_path="./banana_label_map.pbtxt", detect_class=52, visualize_detection=True)
 
         # start a new object detection thread
-        self.od_thread = threading.Thread(target=self.object_detection.begin_detection)
-        self.od_thread.start()
+        self.fly_thread = threading.Thread(target=self.fly)
 
         # keep track of detection trends
         self.not_detected_count = 0
@@ -33,43 +32,47 @@ class ControlTower():
         print(x_delta, y_delta)
 
     def fly(self):
-        # Initialize the low-level drivers (don't list the debug drivers)
-        cflib.crtp.init_drivers(enable_debug_driver=False)
+        # # Initialize the low-level drivers (don't list the debug drivers)
+        # cflib.crtp.init_drivers(enable_debug_driver=False)
 
-        with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
-            # We take off when the commander is created
-            with MotionCommander(scf) as mc:
-                time.sleep(3)
+        # with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
+        #     # We take off when the commander is created
+        #     with MotionCommander(scf) as mc:
+        #         time.sleep(3)
 
-                # move up a bit higher
-                mc.up(1.0)
-                time.sleep(1)
+        #         # move up a bit higher
+        #         mc.up(1.0)
+        #         time.sleep(1)
 
-                # turn left and then right looking for object
-                while(not self.object_detection.get_detected()):
-                    mc.start_turn_right(rate=18)
-                    time.sleep(0.1)
+        #         # turn left and then right looking for object
+        #         while(not self.object_detection.get_detected()):
+        #             mc.start_turn_right(rate=18)
+        #             time.sleep(0.1)
                 
-                mc.stop()
+        #         mc.stop()
 
-                while(self.not_detected_count < 100):
-                    print("Not Detected Count: ", self.not_detected_count)
-                    if(not self.object_detection.get_detected()):
-                        self.not_detected_count += 1
-                        time.sleep(0.1)
-                        continue
+        #         while(self.not_detected_count < 100):
+        #             print("Not Detected Count: ", self.not_detected_count)
+        #             if(not self.object_detection.get_detected()):
+        #                 self.not_detected_count += 1
+        #                 time.sleep(0.1)
+        #                 continue
 
-                    if(self.not_detected_count < 20 or self.object_detection.get_detected()):
-                        mc.forward(0.5, velocity=0.25)
+        #             if(self.not_detected_count < 20 or self.object_detection.get_detected()):
+        #                 mc.forward(0.5, velocity=0.25)
 
-                    time.sleep(0.1)
+        #             time.sleep(0.1)
 
-                mc.stop()
-                # We land when the MotionCommander goes out of scope
+        #         mc.stop()
+        #         # We land when the MotionCommander goes out of scope
+        while(True):
+            print(self.object_detection.get_detected())
+            time.sleep(0.1)
 
 def main():
     control_tower = ControlTower()
-    control_tower.fly()
+    control_tower.fly_thread.start()
+    control_tower.object_detection.begin_detection()
 
 if __name__ == '__main__':
     main()
