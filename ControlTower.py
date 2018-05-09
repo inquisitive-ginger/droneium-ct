@@ -32,42 +32,49 @@ class ControlTower():
         print(x_delta, y_delta)
 
     def fly(self):
-        # # Initialize the low-level drivers (don't list the debug drivers)
-        # cflib.crtp.init_drivers(enable_debug_driver=False)
+        # Initialize the low-level drivers (don't list the debug drivers)
+        cflib.crtp.init_drivers(enable_debug_driver=False)
 
-        # with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
-        #     # We take off when the commander is created
-        #     with MotionCommander(scf) as mc:
-        #         time.sleep(3)
+        with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
+            # We take off when the commander is created
+            with MotionCommander(scf) as mc:
+                time.sleep(3)
 
-        #         # move up a bit higher
-        #         mc.up(1.0)
-        #         time.sleep(1)
+                # move up a bit higher
+                mc.up(1.0)
+                time.sleep(1)
 
-        #         # turn left and then right looking for object
-        #         while(not self.object_detection.get_detected()):
-        #             mc.start_turn_right(rate=18)
-        #             time.sleep(0.1)
+                # turn left and then right looking for object
+                print("Entering SEARCH mode...")
+                search_count = 0
+                while(not self.object_detection.get_detected()):
+                    if(search_count % 10 == 0):
+                        print("SEARCHING...")
+                    mc.start_turn_right(rate=18)
+                    search_count += 1
+                    time.sleep(0.1)
                 
-        #         mc.stop()
+                mc.stop()
 
-        #         while(self.not_detected_count < 100):
-        #             print("Not Detected Count: ", self.not_detected_count)
-        #             if(not self.object_detection.get_detected()):
-        #                 self.not_detected_count += 1
-        #                 time.sleep(0.1)
-        #                 continue
+                print("Entering APPROACH mode...")
+                while(self.not_detected_count < 200):
+                    if(self.not_detected_count % 10 == 0):
+                        print("Not Detected Count: ", self.not_detected_count)
 
-        #             if(self.not_detected_count < 20 or self.object_detection.get_detected()):
-        #                 mc.forward(0.5, velocity=0.25)
+                    if(not self.object_detection.get_detected()):
+                        self.not_detected_count += 1
+                        time.sleep(0.1)
+                        continue
 
-        #             time.sleep(0.1)
+                    if(self.not_detected_count < 20 or self.object_detection.get_detected()):
+                        print("Weapon Detected - APPROACHING!")
+                        mc.forward(0.5, velocity=0.25)
 
-        #         mc.stop()
-        #         # We land when the MotionCommander goes out of scope
-        while(True):
-            print(self.object_detection.get_detected())
-            time.sleep(0.1)
+                    time.sleep(0.1)
+
+                mc.stop()
+                # We land when the MotionCommander goes out of scope
+        
 
 def main():
     control_tower = ControlTower()
