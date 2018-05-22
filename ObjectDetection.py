@@ -30,9 +30,10 @@ NUM_CLASSES = 90
 
 class ObjectDetection():
     def __init__(self, 
-                 model_name='ssd_mobilenet_v2_coco_2018_03_29', 
-                 label_path='./backpack_label_map.pbtxt', 
-                 detect_class=27, 
+                 model_name='ssd_mobilenet_toy_gun', 
+                 loca_model=False,
+                 label_path='./toygun_label_map.pbtxt', 
+                 detect_class=1, 
                  camera=0,
                  visualize_detection=True):
 
@@ -50,7 +51,7 @@ class ObjectDetection():
 
         # variables needed for control tower
         self.detetected = False
-        self.detection_box = []
+        self.detection_box = [None, None, None, None]
 
         # go load model file (download if needed)
         self.initialize_model()
@@ -84,6 +85,19 @@ class ObjectDetection():
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
 
+    def filter_boxes(min_score, boxes, scores, classes, categories):
+        """Return boxes with a confidence >= `min_score`"""
+        n = len(classes)
+        idxs = []
+        for i in range(n):
+            if classes[i] in categories and scores[i] >= min_score:
+                idxs.append(i)
+        
+        filtered_boxes = boxes[idxs, ...]
+        filtered_scores = scores[idxs, ...]
+        filtered_classes = classes[idxs, ...]
+        return filtered_boxes, filtered_scores, filtered_classes
+
     def begin_detection(self):
         cap = cv2.VideoCapture(self.camera)
 
@@ -113,7 +127,7 @@ class ObjectDetection():
                     [boxes, scores, classes, num_detections],
                     feed_dict={image_tensor: image_np_expanded})
 
-                    # print(boxes, scores, classes)
+                    (f_boxes, f_scores, f_classes) = self.filter_boxes(0.25, boxes, scores, classes, categories)
                     
                     #print(category_index[1])
                     # create bounded box and classes only if it is detect(52) and the confidence is more than 60%
@@ -124,6 +138,7 @@ class ObjectDetection():
                         max_detect_boxes = np.array([boxes[0][detect_indexes][0]])
                         max_detect_classes = np.array([classes[0][detect_indexes][0].astype(np.int32)])
 
+                        print(scores)
                         # set detection state
                         self.detetected = True
                         self.detection_box = max_detect_boxes[0]
@@ -142,7 +157,7 @@ class ObjectDetection():
                                     line_thickness=8)
                     else:
                         self.detetected = False
-                        self.detection_box = []
+                        self.detection_box = [None, None, None, None]
 
                     if (self.visualize_detection):
                         cv2.imshow('object detection', image_np)
@@ -158,7 +173,7 @@ class ObjectDetection():
 
 
 def main():
-    object_detector = ObjectDetection(camera=0, label_path="./banana_label_map.pbtxt", detect_class=52, visualize_detection=True)
+    object_detector = ObjectDetection(camera=0, model_name='ssd_mobilenet_toy_gun', label_path="./toygun_label_map.pbtxt", detect_class=1, visualize_detection=True)
     object_detector.begin_detection()
 
 if __name__ == '__main__':

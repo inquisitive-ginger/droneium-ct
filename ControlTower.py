@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.ERROR)
 
 class ControlTower():
     def __init__(self):
-        self.object_detection = ObjectDetection(camera=0, label_path="./banana_label_map.pbtxt", detect_class=52, visualize_detection=True)
+        self.object_detection = ObjectDetection(camera=0, model_name='ssd_mobilenet_toy_gun', label_path="./person_label_map.pbtxt", detect_class=1, visualize_detection=True)
 
         # start a new object detection thread
         self.fly_thread = threading.Thread(target=self.fly)
@@ -24,10 +24,13 @@ class ControlTower():
         # keep track of detection trends
         self.not_detected_count = 0
 
-    def calculate_deltas(self, bounds):
-        x_min, y_min, x_max, y_max = bounds
-        x_delta = (1 - x_max) - x_min
-        y_delta = (1 - y_max) - y_min
+    def calculate_deltas(self):
+        y_min, x_min, y_max, x_max = self.object_detection.get_detection_box()
+        x_delta, y_delta = [0, 0]
+
+        if (x_min and y_min and x_max and y_max):
+            x_delta = (1 - x_max) - x_min
+            y_delta = (1 - y_max) - y_min
 
         print(x_delta, y_delta)
 
@@ -74,12 +77,19 @@ class ControlTower():
 
                 mc.stop()
                 # We land when the MotionCommander goes out of scope
-        
+
+def delta_loop(control_tower):
+    while True:
+        control_tower.calculate_deltas()
+        time.sleep(0.5)
 
 def main():
     control_tower = ControlTower()
-    control_tower.fly_thread.start()
+    # control_tower.fly_thread.start()
+    delta_thread = threading.Thread(target=delta_loop, args=[control_tower])    
+    delta_thread.start()
     control_tower.object_detection.begin_detection()
+
 
 if __name__ == '__main__':
     main()
