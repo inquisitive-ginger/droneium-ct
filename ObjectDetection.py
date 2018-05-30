@@ -2,6 +2,7 @@ import numpy as np
 import os
 import sys
 import tarfile
+import time
 
 import tensorflow as tf
 if tf.__version__ < '1.4.0':
@@ -50,8 +51,10 @@ class ObjectDetection():
         self.object_bounds = []
 
         # variables needed for control tower
-        self.detetected = False
-        self.detection_box = [None, None, None, None]
+        self.current_detection = {
+            'bounding_box': [None, None, None, None],
+            'timestamp': None
+        }
 
         # go load model file (download if needed)
         self.initialize_model()
@@ -85,7 +88,7 @@ class ObjectDetection():
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
 
-    def filter_boxes(min_score, boxes, scores, classes, categories):
+    def filter_boxes(self, min_score, boxes, scores, classes, categories):
         """Return boxes with a confidence >= `min_score`"""
         n = len(classes)
         idxs = []
@@ -96,6 +99,7 @@ class ObjectDetection():
         filtered_boxes = boxes[idxs, ...]
         filtered_scores = scores[idxs, ...]
         filtered_classes = classes[idxs, ...]
+
         return filtered_boxes, filtered_scores, filtered_classes
 
     def begin_detection(self):
@@ -127,23 +131,21 @@ class ObjectDetection():
                     [boxes, scores, classes, num_detections],
                     feed_dict={image_tensor: image_np_expanded})
 
-                    (f_boxes, f_scores, f_classes) = self.filter_boxes(0.25, boxes, scores, classes, categories)
+                    (f_boxes, f_scores, f_classes) = self.filter_boxes(0.5, boxes[0], scores[0], classes[0], [1])
+
+                    # print(f_classes, f_scores, f_boxes)
                     
                     #print(category_index[1])
                     # create bounded box and classes only if it is detect(52) and the confidence is more than 60%
-                    detect_instances = np.where(classes[0] == self.detect_class)
-                    if (len(detect_instances[0]) > 0):
-                        detect_indexes = detect_instances[0]
-                        max_detect_scores = np.array([scores[0][detect_indexes][0]])
-                        max_detect_boxes = np.array([boxes[0][detect_indexes][0]])
-                        max_detect_classes = np.array([classes[0][detect_indexes][0].astype(np.int32)])
+                    if (len(f_boxes) > 0):
+                        # print('Detected!')
+                        max_detect_scores = np.array(f_scores)
+                        max_detect_boxes = np.array(f_boxes)
+                        max_detect_classes = np.array(f_classes.astype(np.int32))
 
-                        print(scores)
                         # set detection state
-                        self.detetected = True
-                        self.detection_box = max_detect_boxes[0]
-
-                        print("detected")
+                        self.current_detection['bounding_box'] = max_detect_boxes[0]
+                        self.current_detection['timestamp'] = time.time()
 
                         if (self.visualize_detection):
                             image_np = vis_util.visualize_boxes_and_labels_on_image_array(
@@ -152,12 +154,9 @@ class ObjectDetection():
                                     max_detect_classes,
                                     max_detect_scores,
                                     category_index,
-                                    min_score_thresh=.25,
+                                    min_score_thresh=0.5,
                                     use_normalized_coordinates=True,
                                     line_thickness=8)
-                    else:
-                        self.detetected = False
-                        self.detection_box = [None, None, None, None]
 
                     if (self.visualize_detection):
                         cv2.imshow('object detection', image_np)
@@ -165,12 +164,26 @@ class ObjectDetection():
                             cv2.destroyAllWindows()
                             break
 
-    def get_detected(self):
-        return self.detetected
+    # check if there has ever been a detection
+    def has_detected(self):
+        return self.current_detection['timestamp'] is not None
+        
+    # check if current detection is recent
+    def detection_is_fresh(self, threshold):
+        if (self.current_detection['timestamp'] is None):
+            return False
+        return (time.time() - self.current_detection['timestamp']) < threshold
 
-    def get_detection_box(self):
-        return self.detection_box
+    # check how centered bounding box is
+    def calculate_deltas(self):
+        y_min, x_min, y_max, x_max = self.current_detection['bounding_box']
+        x_delta, y_delta = [0, 0]
 
+        if (x_min and y_min and x_max and y_max):
+            x_delta = (1 - x_max) - x_min
+            y_delta = (1 - y_max) - y_min
+
+        return (x_delta, y_delta)
 
 def main():
     object_detector = ObjectDetection(camera=0, model_name='ssd_mobilenet_toy_gun', label_path="./toygun_label_map.pbtxt", detect_class=1, visualize_detection=True)
