@@ -1,15 +1,19 @@
 import pyrebase
-
-config = {
-    "apiKey": "AIzaSyDdFNeEvjtNKINuXmiS1iruAxbPPb3Zkng",
-    "authDomain": "droneium-gix.firebaseapp.com",
-    "databaseURL": "https://droneium-gix.firebaseio.com",
-    "projectId": "droneium-gix",
-    "storageBucket": "droneium-gix.appspot.com",
-    "messagingSenderId": "372779620949"
-}
+import json
 
 
 def get_firebase_ref():
-    firebase = pyrebase.initialize_app(config)
-    return firebase.database()
+    fb = None
+
+    # load credentials from json file
+    with open('./credentials/firebase.json', 'r') as f:
+        fb = json.load(f)
+
+    firebase = pyrebase.initialize_app(fb['CONFIG'])
+    auth = firebase.auth()
+
+    # Log the user in
+    user = auth.sign_in_with_email_and_password(
+        fb['USER_EMAIL'], fb['USER_PASSWORD'])
+
+    return (user, firebase.database())

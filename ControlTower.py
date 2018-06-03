@@ -13,9 +13,12 @@ logging.basicConfig(level=logging.ERROR)
 
 
 class ControlTower():
-    def __init__(self, db, od):
+    def __init__(self, user, db, od):
+        self.user = user  # credentials for writing to firebase
         self.db = db  # firebase reference
         self.od = od  # object detection reference
+
+        print(user)
 
     def state_machine(self):
         # Initialize the low-level drivers (don't list the debug drivers)
@@ -32,13 +35,13 @@ class ControlTower():
             time.sleep(0.1)
 
     def mock_state_machine(self):
-        self.db.update({"state": "LAUNCH"})
+        self.db.update({"state": "LAUNCH"}, self.user['idToken'])
         self.sleep_2()
-        self.db.update({"state": "SEARCH"})
+        self.db.update({"state": "SEARCH"}, self.user['idToken'])
         self.sleep_2()
-        self.db.update({"state": "APPROACH"})
+        self.db.update({"state": "APPROACH"}, self.user['idToken'])
         self.sleep_2()
-        self.db.update({"state": "DETER"})
+        self.db.update({"state": "DETER"}, self.user['idToken'])
 
     # flies in a pre-determined path until a gun has been
     # detected, then enters APPROACH mode.
