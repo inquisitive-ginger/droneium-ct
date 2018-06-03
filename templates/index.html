@@ -7,16 +7,72 @@
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>Droneium-UI</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.1/css/bulma.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="{{ url_for('static',filename='styles/style.css') }}">
 </head>
 
 <body>
+  <section class="hero is-warning">
+    <div class="hero-body">
+      <div class="container">
+        <h1 class="title">
+          Droneium
+        </h1>
+        <h2 class="subtitle">
+          Intelligent deterrence.
+        </h2>
+      </div>
+    </div>
+  </section>
   <section class="section">
-    <div class="video-feed">
-      <h1 class="subtitle">Drone Feed</h1>
-      <img src="http://localhost:5000/video_feed" alt="">
+    <div class="container">
+      <div class="columns is-vcentered">
+        <div class="column is-three-quarters">
+          <div class="video-feed">
+            <h1 class="subtitle">Live Feed</h1>
+            <img src="http://localhost:5000/video_feed" alt="">
+          </div>
+          <a class="button is-warning" onclick="launchDrone()">Launch Drone</a>
+        </div>
+        <div class="column">
+          <p class="heading has-text-centered">State</p>
+          <p id="state" class="title has-text-centered">IDLE</p>
+        </div>
+      </div>
+    </div>
     </div>
   </section>
 </body>
+
+<script src="https://www.gstatic.com/firebasejs/5.0.4/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/5.0.4/firebase-database.js"></script>
+<script>
+  // Initialize Firebase
+  var config = {
+    apiKey: "AIzaSyDdFNeEvjtNKINuXmiS1iruAxbPPb3Zkng",
+    authDomain: "droneium-gix.firebaseapp.com",
+    databaseURL: "https://droneium-gix.firebaseio.com",
+    projectId: "droneium-gix",
+    storageBucket: "droneium-gix.appspot.com",
+    messagingSenderId: "372779620949"
+  };
+  firebase.initializeApp(config);
+</script>
+<script>
+  const stateRef = firebase.database().ref('state/');
+  stateRef.on('value', (snapshot) => {
+    document.getElementById('state').innerText = snapshot.val();
+  });
+
+  const launchDrone = () => {
+    let xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+      if (this.readyState == 4 && this.status == 200) {
+        console.log('Drone is being launched...');
+      }
+    };
+    xhttp.open('GET', 'http://localhost:5000/launch', true);
+    xhttp.send();
+  }
+</script>
 
 </html>

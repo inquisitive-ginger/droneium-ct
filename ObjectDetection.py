@@ -104,6 +104,7 @@ class ObjectDetection():
 
     # open video stream a look run object detection algo
     def begin_detection(self):
+        print('I am being run multiple times...')
         cap = cv2.VideoCapture(self.camera)
 
         # List of the strings that is used to add correct label for each box.
