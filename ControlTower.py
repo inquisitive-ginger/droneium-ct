@@ -14,60 +14,66 @@ URI = 'radio://0/80/250K'
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
 
+
 class ControlTower():
     def __init__(self):
-        self.od = ObjectDetection(camera=0, model_name='ssd_mobilenet_toy_gun', label_path="./toygun_label_map.pbtxt", detect_class=1, visualize_detection=True)
+        self.cf = None  # crazyflie instance
+        self.od = ObjectDetection(camera=0, model_name='ssd_mobilenet_toy_gun',
+                                  label_path="./toygun_label_map.pbtxt", detect_class=1, visualize_detection=True)
 
         # start a new object detection thread
-        self.fly_thread = threading.Thread(target=self.fly)
+        self.fly_thread = threading.Thread(target=self.state_machine)
 
-    def search_mode(self, mc):
-        start_time = time.time()
-        # turn left and then right looking for object
+    def state_machine(self):
+        # Initialize the low-level drivers (don't list the debug drivers)
+        cflib.crtp.init_drivers(enable_debug_driver=False)
+
+        with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
+            self.cf = scf.cf
+
+            self.take_off()
+            self.search_mode()
+            self.land()
+
+    # flies in a pre-determined path until a gun has been
+    # detected, then enters APPROACH mode.
+    def search_mode(self):
+        # do a loop while looking for gun
         print("Entering SEARCH mode...")
-        while(True):
-            mc.start_turn_right(rate=25)
+
+        start_time = time.time()
+        gun_detected = False
+        while not gun_detected:
+            self.cf.commander.send_hover_setpoint(0.5, 0, 18, 1.0)
             time.sleep(0.1)
 
-            # state transition checks
-            if(self.od.detection_is_fresh(1)):
-                self.center_on_image(mc)
+            # check for transition to APPROACH
+            if self.od.detection_is_fresh(1):
+                gun_detected = True
                 break
 
-            if(time.time() - start_time > 15):
-                # return to main control loop
+            # exit if taking too long to detect
+            if time.time() - start_time > 20:
                 break
 
-    # def approach_mode(self, mc):
-    #     print("Entering APPROACH mode...")
-    #     while(self.not_detected_count < 200):
-    #         if(self.not_detected_count % 10 == 0):
-    #             print("Not Detected Count: ", self.not_detected_count)
+        if gun_detected:
+            self.approach_mode()
 
-    #         if(not self.object_detection.get_detected()):
-    #             self.not_detected_count += 1
-    #             time.sleep(0.1)
-    #             continue
+    def approach_mode(self):
+        print("Entering APPROACH mode...")
 
-    #         if(self.not_detected_count < 20 or self.object_detection.get_detected()):
-    #             print("Weapon Detected - APPROACHING!")
-    #             mc.forward(0.5, velocity=0.25)
-
-    #         time.sleep(0.1)
-
-    #     mc.stop()
-
-    def center_on_image(self, mc):
+    def center_on_image(self):
         print("Centering on Image...")
         while(True):
             # move drone based on location of bounding box
-            x_delta, y_delta = self.od.calculate_deltas() # (x_delta [-1, 1], y_delta [-1, 1])
+            # (x_delta [-1, 1], y_delta [-1, 1])
+            x_delta, y_delta = self.od.calculate_deltas()
 
             # correct horizontal position
             if(x_delta > 0.1):
                 mc.left(0.2)
-            elif(x_delta < -0.1):                                               
-                mc.right(0.2)  
+            elif(x_delta < -0.1):
+                mc.right(0.2)
 
             # correct vertical position
             if(y_delta > 0.1):
@@ -81,28 +87,36 @@ class ControlTower():
 
             time.sleep(0.1)
 
-        self.search_mode(mc)  
+        self.search_mode(mc)
 
-            
-        # should never reach this point        
-        mc.stop()         
+        # should never reach this point
+        mc.stop()
 
-    def fly(self):
-        # Initialize the low-level drivers (don't list the debug drivers)
-        cflib.crtp.init_drivers(enable_debug_driver=False)
+    def take_off(self):
+        print('Taking off...')
+        # reset kalman filter
+        self.cf.param.set_value('kalman.resetEstimation', '1')
+        time.sleep(0.1)
+        self.cf.param.set_value('kalman.resetEstimation', '0')
+        time.sleep(2)
 
-        with SyncCrazyflie(URI, cf=Crazyflie(rw_cache='./cache')) as scf:
-            # We take off when the commander is created
-            with MotionCommander(scf) as mc:
-                time.sleep(3)
+        # move to 1 meter
+        for y in range(25):
+            self.cf.commander.send_hover_setpoint(0, 0, 0, y / 25)
+            time.sleep(0.1)
 
-                # move up a bit higher
-                mc.up(1.0)
-                time.sleep(1)
-                mc.stop()
+    def land(self):
+        print('Landing...')
+        for _ in range(10):
+            self.cf.commander.send_hover_setpoint(0, 0, 0, 1.0)
+            time.sleep(0.1)
 
-                self.search_mode(mc)
-                # We land when the MotionCommander goes out of scope
+        for y in range(25):
+            self.cf.commander.send_hover_setpoint(0, 0, 0, (25 - y) / 25)
+            time.sleep(0.1)
+
+        self.cf.commander.send_stop_setpoint()
+
 
 def main():
     control_tower = ControlTower()
