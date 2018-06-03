@@ -147,7 +147,7 @@ class ObjectDetection():
                     # print(category_index[1])
                     # create bounded box and classes only if it is detect(52) and the confidence is more than 60%
                     if (len(f_boxes) > 0):
-                        # print('Detected!')
+                        print('Gun Detected!')
                         max_detect_scores = np.array(f_scores)
                         max_detect_boxes = np.array(f_boxes)
                         max_detect_classes = np.array(
