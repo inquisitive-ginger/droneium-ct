@@ -16,13 +16,13 @@ from collections import defaultdict
 import cv2
 import six.moves.urllib as urllib
 from io import StringIO
-from matplotlib import pyplot as plt
-from PIL import Image
+# from matplotlib import pyplot as plt
+# from PIL import Image
 
 # This is needed since the notebook is stored in the object_detection folder.
 MODEL_DIR = '../tensorflow/models/research/object_detection/'
 sys.path.append(MODEL_DIR)
-print(sys.path)
+
 from object_detection.utils import ops as utils_ops
 from object_detection.utils import label_map_util
 from utils import label_map_util
@@ -37,22 +37,20 @@ class ObjectDetection():
                  loca_model=False,
                  label_path='./toygun_label_map.pbtxt',
                  detect_class=1,
-                 camera=0,
-                 visualize_detection=True):
+                 camera=0):
 
         # general initialization variables
         self.model_name = model_name
         self.detect_class = detect_class
         self.label_path = label_path
         self.camera = camera
-        self.visualize_detection = visualize_detection
 
         # core detection variables
         self.detection_graph = None
         self.object_detected = False
         self.object_bounds = []
 
-        # variables needed for control tower
+        # variables needed for ControlTower
         self.current_detection = {
             'bounding_box': [None, None, None, None],
             'timestamp': None
@@ -90,8 +88,8 @@ class ObjectDetection():
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
 
+    # only return boxes that meet a certain score threshold
     def filter_boxes(self, min_score, boxes, scores, classes, categories):
-        """Return boxes with a confidence >= `min_score`"""
         n = len(classes)
         idxs = []
         for i in range(n):
@@ -104,7 +102,9 @@ class ObjectDetection():
 
         return filtered_boxes, filtered_scores, filtered_classes
 
+    # open video stream a look run object detection algo
     def begin_detection(self):
+        print('I am being run multiple times...')
         cap = cv2.VideoCapture(self.camera)
 
         # List of the strings that is used to add correct label for each box.
@@ -140,7 +140,7 @@ class ObjectDetection():
                         feed_dict={image_tensor: image_np_expanded})
 
                     (f_boxes, f_scores, f_classes) = self.filter_boxes(
-                        0.75, boxes[0], scores[0], classes[0], [1])
+                        0.5, boxes[0], scores[0], classes[0], [1])
 
                     # print(f_classes, f_scores, f_boxes)
 
@@ -157,22 +157,19 @@ class ObjectDetection():
                         self.current_detection['bounding_box'] = max_detect_boxes[0]
                         self.current_detection['timestamp'] = time.time()
 
-                        if (self.visualize_detection):
-                            image_np = vis_util.visualize_boxes_and_labels_on_image_array(
-                                image_np,
-                                max_detect_boxes,
-                                max_detect_classes,
-                                max_detect_scores,
-                                category_index,
-                                min_score_thresh=0.5,
-                                use_normalized_coordinates=True,
-                                line_thickness=8)
+                        image_np = vis_util.visualize_boxes_and_labels_on_image_array(
+                            image_np,
+                            max_detect_boxes,
+                            max_detect_classes,
+                            max_detect_scores,
+                            category_index,
+                            min_score_thresh=0.5,
+                            use_normalized_coordinates=True,
+                            line_thickness=8)
 
-                    if (self.visualize_detection):
-                        cv2.imshow('object detection', image_np)
-                        if cv2.waitKey(25) & 0xFF == ord('q'):
-                            cv2.destroyAllWindows()
-                            break
+                    ret, jpeg = cv2.imencode('.jpg', image_np)
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
 
     # check if there has ever been a detection
     def has_detected(self):
@@ -198,7 +195,7 @@ class ObjectDetection():
 
 def main():
     object_detector = ObjectDetection(camera=0, model_name='ssd_mobilenet_toy_gun',
-                                      label_path="./toygun_label_map.pbtxt", detect_class=1, visualize_detection=True)
+                                      label_path="./toygun_label_map.pbtxt", detect_class=1)
     object_detector.begin_detection()
 
 
