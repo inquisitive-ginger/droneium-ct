@@ -104,7 +104,6 @@ class ObjectDetection():
 
     # open video stream a look run object detection algo
     def begin_detection(self):
-        print('I am being run multiple times...')
         cap = cv2.VideoCapture(self.camera)
 
         # List of the strings that is used to add correct label for each box.
@@ -140,14 +139,13 @@ class ObjectDetection():
                         feed_dict={image_tensor: image_np_expanded})
 
                     (f_boxes, f_scores, f_classes) = self.filter_boxes(
-                        0.5, boxes[0], scores[0], classes[0], [1])
+                        0.75, boxes[0], scores[0], classes[0], [1])
 
                     # print(f_classes, f_scores, f_boxes)
 
                     # print(category_index[1])
                     # create bounded box and classes only if it is detect(52) and the confidence is more than 60%
                     if (len(f_boxes) > 0):
-                        print('Gun Detected!')
                         max_detect_scores = np.array(f_scores)
                         max_detect_boxes = np.array(f_boxes)
                         max_detect_classes = np.array(
@@ -184,13 +182,14 @@ class ObjectDetection():
     # check how centered bounding box is
     def calculate_deltas(self):
         y_min, x_min, y_max, x_max = self.current_detection['bounding_box']
-        x_delta, y_delta = [0, 0]
+        x_delta, y_delta, area = [0, 0, 0]
 
         if (x_min and y_min and x_max and y_max):
             x_delta = (1 - x_max) - x_min
             y_delta = (1 - y_max) - y_min
+            area = (x_max - x_min) * (y_max - y_min)
 
-        return (x_delta, y_delta)
+        return (x_delta, y_delta, area)
 
 
 def main():

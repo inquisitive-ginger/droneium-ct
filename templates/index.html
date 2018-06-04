@@ -23,6 +23,13 @@
       </div>
     </div>
   </section>
+  <!-- <nav class="navbar is-warning">
+    <div class="navbar-brand">
+      <div class="navbar-item">
+        <img src="{{ url_for('static',filename='images/DroneiumLogo.png') }}" alt="Droneiumn wordmark logo">
+      </div>
+    </div>
+  </nav> -->
   <section class="section">
     <div class="container">
       <div class="columns is-vcentered">
@@ -36,6 +43,16 @@
         <div class="column">
           <p class="heading has-text-centered">State</p>
           <p id="state" class="title has-text-centered">IDLE</p>
+          <div class="level deltas">
+            <div class="delta-x">
+              <p class="heading has-text-centered">X-Delta</p>
+              <p id="delta-x" class="title has-text-centered">N/A</p>
+            </div>
+            <div class="delta-y">
+              <p class="heading has-text-centered">Y-Delta</p>
+              <p id="delta-y" class="title has-text-centered">N/A</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -58,9 +75,27 @@
   firebase.initializeApp(config);
 </script>
 <script>
+  const audioCommands = {
+    'LAUNCH': new Audio('./static/commands/takeoffmode.mp3'),
+    'SEARCH': new Audio('./static/commands/searchmode.mp3'),
+    'APPROACH': new Audio('./static/commands/approachmode.mp3'),
+    'DETER': new Audio('./static/commands/determode.mp3'),
+    'LANDING': new Audio('./static/commands/landingmode.mp3'),
+  }
+
   const stateRef = firebase.database().ref('state/');
+  const deltaRef = firebase.database().ref('deltas/');
+
   stateRef.on('value', (snapshot) => {
-    document.getElementById('state').innerText = snapshot.val();
+    const mode = snapshot.val();
+    if (mode in audioCommands) audioCommands[mode].play();
+    document.getElementById('state').innerText = mode;
+  });
+
+  deltaRef.on('value', (snapshot) => {
+    const deltas = snapshot.val();
+    document.getElementById('delta-x').innerText = `${deltas.x.toFixed(3)} m`;
+    document.getElementById('delta-y').innerText = `${deltas.y.toFixed(3)} m`;
   });
 
   const launchDrone = () => {

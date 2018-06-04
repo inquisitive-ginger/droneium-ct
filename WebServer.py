@@ -20,7 +20,7 @@ class WebServer:
                         mimetype='multipart/x-mixed-replace; boundary=frame')
 
     def launch(self):
-        launch_thread = threading.Thread(target=self.ct.mock_state_machine)
+        launch_thread = threading.Thread(target=self.ct.state_machine)
         launch_thread.start()
         return Response('Launch!', 200)
 
